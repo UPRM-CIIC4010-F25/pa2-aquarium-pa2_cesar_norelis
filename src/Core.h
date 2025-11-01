@@ -100,6 +100,9 @@ public:
     void setBounds(int w, int h);
     void normalize();
     void bounce();
+
+    // 💡 NEW: Function to be called when this creature collides with another
+    virtual void handleCreatureCollision(std::shared_ptr<Creature> other); 
 };
 
 // GameEvents

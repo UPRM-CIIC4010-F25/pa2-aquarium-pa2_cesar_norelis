@@ -59,11 +59,22 @@ void GameEvent::print() const {
                 break;
         }
 };
+void Creature::handleCreatureCollision(std::shared_ptr<Creature> other) {
+    // Default behavior (maybe do nothing)
+}
 
 // collision detection between two creatures
 bool checkCollision(std::shared_ptr<Creature> a, std::shared_ptr<Creature> b) {
-    return false; 
-};
+    if (!a || !b) return false;
+
+    float dx = (a->getX() + a->getCollisionRadius()) - (b->getX() + b->getCollisionRadius());
+    float dy = (a->getY() + a->getCollisionRadius()) - (b->getY() + b->getCollisionRadius());
+    float distanceSquared = dx * dx + dy * dy;
+    float radiusSum = a->getCollisionRadius() + b->getCollisionRadius();
+
+    return distanceSquared <= radiusSum * radiusSum;
+}
+
 
 
 string GameSceneKindToString(GameSceneKind t){
@@ -72,8 +83,10 @@ string GameSceneKindToString(GameSceneKind t){
         case GameSceneKind::GAME_INTRO: return "GAME_INTRO";
         case GameSceneKind::AQUARIUM_GAME: return "AQUARIUM_GAME";
         case GameSceneKind::GAME_OVER: return "GAME_OVER";
-    };
-};
+        default: return "UNKNOWN_SCENE";
+    }
+}
+
 
 std::shared_ptr<GameScene> GameSceneManager::GetScene(string name){
     if(!this->HasScenes()){return nullptr;}
