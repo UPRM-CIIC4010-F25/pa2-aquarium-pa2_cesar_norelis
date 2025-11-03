@@ -74,7 +74,8 @@
 			"memory": "cpp",
 			"complex": "cpp",
 			"regex": "cpp",
-			"algorithm": "cpp"
+			"algorithm": "cpp",
+			"xiosbase": "cpp"
 		}
 	}
 }

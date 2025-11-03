@@ -15,8 +15,23 @@ string AquariumCreatureTypeToString(AquariumCreatureType t){
 
 // PlayerCreature Implementation
 PlayerCreature::PlayerCreature(float x, float y, int speed, std::shared_ptr<GameSprite> sprite)
-: Creature(x, y, speed, 10.0f, 1, sprite) {}
+: Creature(x, y, speed, 10.0f, 1, sprite)
+{
+    m_baseSpeed = static_cast<float>(speed);
+    m_speed = m_baseSpeed;
+    m_originalSpeed = m_baseSpeed;
+    m_originalRadius = m_collisionRadius;
+}
 
+void PlayerCreature::update() {
+    this->reduceDamageDebounce();
+    float deltaTime = ofGetLastFrameTime();
+    updateBoost(deltaTime);  // handle boost timing
+    reduceDamageDebounce();
+    move();
+    
+
+}
 
 void PlayerCreature::setDirection(float dx, float dy) {
     m_dx = dx;
@@ -30,17 +45,60 @@ void PlayerCreature::move() {
     this->bounce();
 }
 
+
 void PlayerCreature::reduceDamageDebounce() {
     if (m_damage_debounce > 0) {
         --m_damage_debounce;
     }
 }
 
-void PlayerCreature::update() {
-    this->reduceDamageDebounce();
-    this->move();
+void PlayerCreature::startBoost(PowerUpType type) {
+    startBoost(5.0f, type); // 5-second default
 }
 
+void PlayerCreature::startBoost(float seconds, PowerUpType type) {
+    if (type == PowerUpType::SPEED) {
+        m_boosted = true;
+        m_boostTimer = seconds; // resets the timer every time
+
+        // Compute new intended speed
+        float intendedSpeed = m_speed * 1.1f;
+        const float MAX_SPEED_CAP = m_baseSpeed * 1.5f;
+
+        if (intendedSpeed > MAX_SPEED_CAP) {
+            m_speed = MAX_SPEED_CAP;
+            ofLogNotice() << "MAX SPEED BOOST REACHED!";
+            auto scene = dynamic_cast<AquariumGameScene*>(ofGetAppPtr());
+            if (scene) scene->showBoostMessage("MAX SPEED BOOST REACHED!");
+        } else {
+            m_speed = intendedSpeed;
+            auto scene = dynamic_cast<AquariumGameScene*>(ofGetAppPtr());
+            if (scene) scene->showBoostMessage("SPEED BOOST!");
+        }
+
+        ofLogNotice() << "Speed boost active: " << m_speed;
+    } 
+    else if (type == PowerUpType::SIZE) {
+        m_collisionRadius *= 1.3f;
+        m_boosted = true;
+        m_boostTimer = seconds;
+        auto scene = dynamic_cast<AquariumGameScene*>(ofGetAppPtr());
+        if (scene) scene->showBoostMessage("SIZE BOOST!");
+    }
+}
+
+
+void PlayerCreature::updateBoost(float deltaTime) {
+    if (!m_boosted) return;
+
+    m_boostTimer -= deltaTime;
+    if (m_boostTimer <= 0.0f) {
+        m_boosted = false;
+        m_speed = m_baseSpeed;
+        m_collisionRadius = m_originalRadius;
+        ofLogNotice() << "Power-up expired. Speed reset to " << m_baseSpeed;
+    }
+}
 
 void PlayerCreature::draw() const {
     
@@ -273,14 +331,74 @@ std::shared_ptr<GameEvent> DetectAquariumCollisions(std::shared_ptr<Aquarium> aq
 };
 
 //  Imlementation of the AquariumScene
-
-void AquariumGameScene::Update(){
-    std::shared_ptr<GameEvent> event;
-
+void AquariumGameScene::Update() {
     this->m_player->update();
 
+   // Always increment spawn timer
+m_powerUpSpawnTimer += ofGetLastFrameTime();
+
+// Spawn a new power-up if none exists AND timer passed
+if (!m_activePowerUp && m_powerUpSpawnTimer <= m_powerUpSpawnDelay) {
+    m_powerUpSpawnTimer = 0.0f;
+    float x = ofRandom(100, ofGetWidth() - 100);
+    float y = ofRandom(100, ofGetHeight() - 100);
+
+    m_activePowerUp = std::make_shared<PowerUp>(
+        x, y, PowerUpType::SPEED,
+        std::make_shared<GameSprite>("powerup.png", 40, 40)
+    );
+
+    m_powerUpLifeTimer = 0.0f; // start life timer
+    ofLogNotice() << "Spawned a power-up!";
+}
+
+// Handle lifetime only if a power-up exists
+if (m_activePowerUp) {
+    m_powerUpLifeTimer += ofGetLastFrameTime();
+
+    if (m_powerUpLifeTimer >= m_powerUpLifetime) {
+        ofLogNotice() << "Power-up expired!";
+        m_activePowerUp.reset();
+    }
+
+  if (m_activePowerUp) {
+    m_powerUpLifeTimer += ofGetLastFrameTime();
+
+    // Expire power-up if lifetime exceeded
+    if (m_powerUpLifeTimer >= m_powerUpLifetime) {
+        ofLogNotice() << "Power-up expired!";
+        m_activePowerUp.reset();
+    }
+
+    // Collision detection
+    if (checkCollision(m_player, m_activePowerUp)) {
+        // Apply boost to the player
+        m_player->startBoost(m_activePowerUp->getType());
+
+        // Show appropriate boost message
+        if (m_player->getSpeed() >= m_player->getBaseSpeed() * 1.5f) {
+            showBoostMessage("MAX SPEED BOOST REACHED!");
+        } else {
+            showBoostMessage("SPEED BOOST!");
+        }
+
+        ofLogNotice() << "Player collected Speed Boost!";
+        m_activePowerUp.reset();
+    }
+}
+
+// Update boost message timer every frame (outside collision)
+if (m_boostMessageTimer > 0.0f) {
+    m_boostMessageTimer -= ofGetLastFrameTime();
+    if (m_boostMessageTimer <= 0.0f) {
+        m_boostMessage.clear();
+    }
+}
+
+
+    // NPC collision detection
     if (this->updateControl.tick()) {
-        event = DetectAquariumCollisions(this->m_aquarium, this->m_player);
+        auto event = DetectAquariumCollisions(this->m_aquarium, this->m_player);
         if (event != nullptr && event->isCollisionEvent()) {
             ofLogVerbose() << "Collision detected between player and NPC!" << std::endl;
             if(event->creatureB != nullptr){
@@ -311,14 +429,30 @@ void AquariumGameScene::Update(){
         }
         this->m_aquarium->update();
     }
+}
+}
 
+void AquariumGameScene::showBoostMessage(const std::string& msg) {
+    m_boostMessage = msg;
+    m_boostMessageTimer = 2.0f; // show message for 2 seconds
 }
 
 void AquariumGameScene::Draw() {
     this->m_player->draw();
     this->m_aquarium->draw();
+    
+    if (m_activePowerUp) {
+    m_activePowerUp->draw();
+}
     this->paintAquariumHUD();
-
+    
+  // Draw the boost message if active
+if (!m_boostMessage.empty()) {
+    ofSetColor(ofColor::yellow);
+    ofDrawBitmapString(m_boostMessage, ofGetWidth() / 2 - 50, 100); // adjust position
+    ofSetColor(ofColor::white); // reset color
+    
+}
 }
 
 
