@@ -1,10 +1,12 @@
-#define NOMINMAX // To avoid min/max macro conflict on Windows
+#pragma once
 
 #include <vector>
 #include <memory>
 #include <iostream>
 #include <algorithm>
 #include "Core.h"
+#include "PowerUp.h"
+
 
 
 enum class AquariumCreatureType {
@@ -39,7 +41,7 @@ class AquariumLevel : public GameLevel {
     protected:
         std::vector<std::shared_ptr<AquariumLevelPopulationNode>> m_levelPopulation;
         int m_level_score;
-        int m_targetScore;
+        int m_targetScore;       
 
 };
 
@@ -68,7 +70,28 @@ public:
     void increasePower(int value) { m_power += value; }
     void reduceDamageDebounce();
     
+    void startBoost(float seconds, PowerUpType type); // main implementation
+    void startBoost(PowerUpType type);                // convenience overload
+
+    void updateBoost(float deltaTime);
+
+    float getBaseSpeed() const { return m_baseSpeed; }
+    float getCurrentSpeed() const { return m_speed; }
+    
 private:
+  
+    std::shared_ptr<PowerUp> m_activePowerUp = nullptr;
+    
+bool m_boosted = false;
+float m_boostTimer = 0.0f;
+float m_baseSpeed;
+float m_speed;
+float m_originalSpeed;
+float m_originalRadius;
+float m_collisionRadius;
+
+   
+
     int m_score = 0;
     int m_lives = 3;
     int m_power = 1; // mark current power lvl
@@ -151,6 +174,9 @@ class AquariumGameScene : public GameScene {
         string GetName()override {return this->m_name;}
         void Update() override;
         void Draw() override;
+
+        void showBoostMessage(const std::string& msg);
+
     private:
         void paintAquariumHUD();
         std::shared_ptr<PlayerCreature> m_player;
@@ -158,6 +184,19 @@ class AquariumGameScene : public GameScene {
         std::shared_ptr<GameEvent> m_lastEvent;
         string m_name;
         AwaitFrames updateControl{5};
+
+    std::shared_ptr<PowerUp> m_activePowerUp;
+    float m_powerUpSpawnTimer = 0.0f;    // Timer counting up to spawn
+    float m_powerUpSpawnDelay = 5.0f;    // Spawn after 5 seconds
+    float m_powerUpLifeTimer = 0.0f;     // Lifetime countdown
+    float m_powerUpLifetime = 6.0f;      // Power-up disappears after 6 seconds
+
+
+    std::string m_boostMessage;
+    float m_boostMessageTimer = 0.0f; // how long to show the message in seconds
+    ofTrueTypeFont m_messageFont;     // font for messages
+
+
 };
 
 

@@ -1,3 +1,4 @@
+#pragma once
 #include <iostream>
 #include <memory>
 #include <utility>
@@ -70,7 +71,7 @@ protected:
     float m_y = 0.0f;
     float m_dx = 0.0f;
     float m_dy = 0.0f;
-    int m_speed = 0;
+    float m_speed = 0.0f;
     float m_width = 0.0f;
     float m_height = 0.0f;
     float m_collisionRadius = 0.0f;
