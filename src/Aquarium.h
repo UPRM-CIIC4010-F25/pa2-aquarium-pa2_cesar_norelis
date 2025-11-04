@@ -11,7 +11,9 @@
 
 enum class AquariumCreatureType {
     NPCreature,
-    BiggerFish
+    BiggerFish,
+    Axolotl,
+    Jellyfish
 };
 
 string AquariumCreatureTypeToString(AquariumCreatureType t);

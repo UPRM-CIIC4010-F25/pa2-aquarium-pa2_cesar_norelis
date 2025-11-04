@@ -189,6 +189,64 @@ void BiggerFish::draw() const {
     this->m_sprite->draw(this->m_x, this->m_y);
 }
 
+class Axolotl : public NPCreature {
+public:
+    Axolotl(float x, float y, int speed, std::shared_ptr<GameSprite> sprite)
+        : NPCreature(x, y, speed, sprite) {
+        m_dx = 1;      
+        m_dy = 0;      
+        normalize();
+
+        setCollisionRadius(40); 
+        m_value = 3;   
+        m_creatureType = AquariumCreatureType::Axolotl;
+    }
+
+    void move() override {
+        m_x += m_dx * m_speed;
+
+        if (m_x <= 0 || m_x >= m_width) {
+            m_dx = -m_dx;
+            if (m_sprite) m_sprite->setFlipped(m_dx < 0);
+        }
+
+    }
+
+    void draw() const override {
+        if (m_sprite) {
+            m_sprite->draw(m_x, m_y);
+        }
+    }
+};
+
+class Jellyfish : public NPCreature {
+public:
+    Jellyfish(float x, float y, int speed, std::shared_ptr<GameSprite> sprite)
+        : NPCreature(x, y, speed, sprite)
+    {
+        m_dx = 0;
+        m_dy = 1;
+        normalize();
+
+        setCollisionRadius(30);
+        m_value = 2;
+        m_creatureType = AquariumCreatureType::Jellyfish;
+    }
+
+    void move() override {
+        m_y += m_dy * m_speed;
+
+        if (m_y <= 0 || m_y >= m_height) {
+            m_dy = -m_dy;
+        }
+    }
+
+    void draw() const override {
+        if (m_sprite) {
+            m_sprite->draw(m_x, m_y);
+        }
+    }
+};
 
 // AquariumSpriteManager
 AquariumSpriteManager::AquariumSpriteManager(){
@@ -203,6 +261,13 @@ std::shared_ptr<GameSprite> AquariumSpriteManager::GetSprite(AquariumCreatureTyp
             
         case AquariumCreatureType::NPCreature:
             return std::make_shared<GameSprite>(*this->m_npc_fish);
+
+        case AquariumCreatureType::Axolotl:
+            return std::make_shared<GameSprite>("axolotl.png", 80, 50);
+        
+        case AquariumCreatureType::Jellyfish:
+            return std::make_shared<GameSprite>("jellyfish.png", 60, 80);
+
         default:
             return nullptr;
     }
@@ -276,6 +341,12 @@ void Aquarium::SpawnCreature(AquariumCreatureType type) {
             break;
         case AquariumCreatureType::BiggerFish:
             this->addCreature(std::make_shared<BiggerFish>(x, y, speed, this->m_sprite_manager->GetSprite(AquariumCreatureType::BiggerFish)));
+            break;
+        case AquariumCreatureType::Axolotl:
+            this->addCreature(std::make_shared<Axolotl>(x, y, speed, this->m_sprite_manager->GetSprite(AquariumCreatureType::Axolotl)));
+            break;
+        case AquariumCreatureType::Jellyfish:
+            this->addCreature(std::make_shared<Jellyfish>(x, y, speed, this->m_sprite_manager->GetSprite(AquariumCreatureType::Jellyfish)));
             break;
         default:
             ofLogError() << "Unknown creature type to spawn!";
