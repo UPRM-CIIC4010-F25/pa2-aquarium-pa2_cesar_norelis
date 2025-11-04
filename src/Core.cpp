@@ -1,6 +1,11 @@
 #include "Core.h"
 
 
+std::shared_ptr<GameSprite> GameSprite::clone() const {
+    return std::make_shared<GameSprite>(m_imagePath, m_widthPixels, m_heightPixels);
+}
+
+
 // Creature Inherited Base Behavior
 void Creature::setBounds(int w, int h) { m_width = w; m_height = h; }
 void Creature::normalize() {
