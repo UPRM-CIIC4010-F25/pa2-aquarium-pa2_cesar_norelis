@@ -8,6 +8,10 @@ string AquariumCreatureTypeToString(AquariumCreatureType t){
             return "BiggerFish";
         case AquariumCreatureType::NPCreature:
             return "BaseFish";
+        case AquariumCreatureType::Axolotl:
+            return "Axolotl";
+        case AquariumCreatureType::Jellyfish:
+            return "Jellyfish";
         default:
             return "UknownFish";
     }
@@ -317,21 +321,23 @@ public:
 AquariumSpriteManager::AquariumSpriteManager(){
     this->m_npc_fish = std::make_shared<GameSprite>("base-fish.png", 70,70);
     this->m_big_fish = std::make_shared<GameSprite>("bigger-fish.png", 120, 120);
+    this->m_axolotl = std::make_shared<GameSprite>("axolotl.png", 80, 50);
+    this->m_jellyfish = std::make_shared<GameSprite>("jellyfish.png", 60, 80);
 }
 
 std::shared_ptr<GameSprite> AquariumSpriteManager::GetSprite(AquariumCreatureType t){
     switch(t){
         case AquariumCreatureType::BiggerFish:
-            return std::make_shared<GameSprite>(*this->m_big_fish);
+            return this->m_big_fish->clone();
             
         case AquariumCreatureType::NPCreature:
-            return std::make_shared<GameSprite>(*this->m_npc_fish);
+            return this->m_npc_fish->clone();
 
         case AquariumCreatureType::Axolotl:
-            return std::make_shared<GameSprite>("axolotl.png", 80, 50);
+            return this->m_axolotl->clone();
         
         case AquariumCreatureType::Jellyfish:
-            return std::make_shared<GameSprite>("jellyfish.png", 60, 80);
+            return this->m_jellyfish->clone();
 
         default:
             return nullptr;
@@ -534,23 +540,37 @@ void AquariumGameScene::Update() {
             ofLogVerbose() << "Collision detected between player and NPC!" << std::endl;
             if(event->creatureB != nullptr){
                 event->print();
-                bool predatorActive = this->m_player->isPredatorMode();
-                if(!predatorActive && this->m_player->getPower() < event->creatureB->getValue()){
-                    ofLogNotice() << "Player is too weak to eat the creature!" << std::endl;
-                    this->m_player->loseLife(3*60); // 3 frames debounce, 3 seconds at 60fps
+                auto npc = std::dynamic_pointer_cast<NPCreature>(event->creatureB);
+                if(npc && npc->GetType() == AquariumCreatureType::Jellyfish){
+                    ofLogNotice() << "A jellyfish sting harms the player!";
+                    this->m_player->loseLife(3*60);
                     if(this->m_player->getLives() <= 0){
                         this->m_lastEvent = std::make_shared<GameEvent>(GameEventType::GAME_OVER, this->m_player, nullptr);
                         return;
                     }
-                }
-                else{
-                    this->m_aquarium->removeCreature(event->creatureB);
-                    this->m_player->addToScore(1, event->creatureB->getValue());
-                    if (this->m_player->getScore() % 25 == 0){
-                        this->m_player->increasePower(1);
-                        ofLogNotice() << "Player power increased to " << this->m_player->getPower() << "!" << std::endl;
+                } else if(npc && npc->GetType() == AquariumCreatureType::Axolotl && this->m_player->isPredatorMode()){
+                    ofLogNotice() << "Predator mode spares the axolotl.";
+                } else {
+                    bool predatorActive = this->m_player->isPredatorMode();
+                    bool isAxolotl = npc && npc->GetType() == AquariumCreatureType::Axolotl;
+                    bool canEat = predatorActive || isAxolotl || this->m_player->getPower() >= event->creatureB->getValue();
+                    if(!canEat){
+                        ofLogNotice() << "Player is too weak to eat the creature!" << std::endl;
+                        this->m_player->loseLife(3*60); // 3 frames debounce, 3 seconds at 60fps
+                        if(this->m_player->getLives() <= 0){
+                            this->m_lastEvent = std::make_shared<GameEvent>(GameEventType::GAME_OVER, this->m_player, nullptr);
+                            return;
+                        }
                     }
-                    
+                    else{
+                        this->m_aquarium->removeCreature(event->creatureB);
+                        this->m_player->addToScore(1, event->creatureB->getValue());
+                        if (this->m_player->getScore() % 25 == 0){
+                            this->m_player->increasePower(1);
+                            ofLogNotice() << "Player power increased to " << this->m_player->getPower() << "!" << std::endl;
+                        }
+                        
+                    }
                 }
                 
                 

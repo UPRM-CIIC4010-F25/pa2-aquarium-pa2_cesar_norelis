@@ -26,6 +26,9 @@ private:
 class GameSprite {
 public:
     GameSprite(const std::string& imagePath, int width, int height) {
+        m_imagePath = imagePath;
+        m_widthPixels = width;
+        m_heightPixels = height;
         if (!m_image.load(imagePath)) {
             std::cerr << "Failed to load image: " << imagePath << std::endl;
         }
@@ -44,10 +47,15 @@ public:
 
     void setFlipped(bool flipped) { m_flipped = flipped; }
 
+    std::shared_ptr<GameSprite> clone() const;
+
 private:
     ofImage m_image;
     ofImage m_flippedImage;
     bool m_flipped = false;
+    std::string m_imagePath;
+    int m_widthPixels = 0;
+    int m_heightPixels = 0;
 };
 
 
