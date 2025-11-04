@@ -25,7 +25,7 @@ Grading
 | Student Number | Student Name | Student Email |
 |-|-|-|
 |(841-22-1827)| (Cesar R. Maldonado Hernandez)| (cesar.maldonado2@upr.edu) |
-|(STUDENT NUMBER HERE)| (STUDENT NAME HERE)| (STUDENT EMAIL HERE) |
+|(802-24-3927)| (Norelis Carreras Claudio)| (norelis.carreras@upr.edu) |
 
 ---
 
