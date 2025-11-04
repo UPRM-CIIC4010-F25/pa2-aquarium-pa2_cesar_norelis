@@ -31,12 +31,10 @@ PlayerCreature::PlayerCreature(float x, float y, int speed, std::shared_ptr<Game
 void PlayerCreature::update() {
     this->reduceDamageDebounce();
     float deltaTime = ofGetLastFrameTime();
-    updateBoost(deltaTime);  // handle boost timing
+    updateBoost(deltaTime);
     updatePredator(deltaTime);
     reduceDamageDebounce();
     move();
-    
-
 }
 
 void PlayerCreature::setDirection(float dx, float dy) {
@@ -51,7 +49,6 @@ void PlayerCreature::move() {
     this->bounce();
 }
 
-
 void PlayerCreature::reduceDamageDebounce() {
     if (m_damage_debounce > 0) {
         --m_damage_debounce;
@@ -59,7 +56,7 @@ void PlayerCreature::reduceDamageDebounce() {
 }
 
 void PlayerCreature::startBoost(PowerUpType type) {
-    startBoost(5.0f, type); // 5-second default
+    startBoost(5.0f, type);
 }
 
 void PlayerCreature::startBoost(float seconds, PowerUpType type) {
@@ -87,13 +84,6 @@ void PlayerCreature::startBoost(float seconds, PowerUpType type) {
         }
 
         if (m_speed >= m_baseSpeed * 1.5f) {
-            auto scene = dynamic_cast<AquariumGameScene*>(ofGetAppPtr());
-            if (scene) {
-                scene->showBoostMessage("MAX SPEED BOOST");
-            }
-        }
-
-        if (m_speed >= m_baseSpeed * 1.5f) {
             ofLogNotice() << "MAX SPEED BOOST";
         } else {
             ofLogNotice() << "Speed boost active: " << m_speed;
@@ -102,7 +92,9 @@ void PlayerCreature::startBoost(float seconds, PowerUpType type) {
         m_sizeBoostMultiplier = 1.3f;
         float baseRadius = m_inPredatorMode ? m_predatorCollisionRadius : m_baseRadius;
         setCollisionRadius(baseRadius * m_sizeBoostMultiplier);
-        if (scene) scene->showBoostMessage("SIZE BOOST!");
+        if (scene) {
+            scene->showBoostMessage("SIZE BOOST!");
+        }
     }
 }
 
@@ -655,77 +647,22 @@ bool AquariumLevel::isCompleted(){
     return this->m_level_score >= this->m_targetScore;
 }
 
-
-
-
-std::vector<AquariumCreatureType> Level_0::Repopulate() {
+std::vector<AquariumCreatureType> AquariumLevel::Repopulate() {
     std::vector<AquariumCreatureType> toRepopulate;
-    for(std::shared_ptr<AquariumLevelPopulationNode> node : this->m_levelPopulation){
-        int delta = node->population - node->currentPopulation;
-        ofLogVerbose() << "to Repopulate :  " << delta << endl;
-        if(delta >0){
-            for(int i = 0; i<delta; i++){
-                toRepopulate.push_back(node->creatureType);
-            }
-            node->currentPopulation += delta;
+    for (const auto& node : m_levelPopulation) {
+        if (!node) {
+            continue;
         }
-    }
-    return toRepopulate;
 
-}
-
-std::vector<AquariumCreatureType> Level_1::Repopulate() {
-    std::vector<AquariumCreatureType> toRepopulate;
-    for(std::shared_ptr<AquariumLevelPopulationNode> node : this->m_levelPopulation){
-        int delta = node->population - node->currentPopulation;
-        if(delta >0){
-            for(int i=0; i<delta; i++){
-                toRepopulate.push_back(node->creatureType);
-            }
-            node->currentPopulation += delta;
+        int desiredPopulation = std::max(0, node->population);
+        int delta = desiredPopulation - node->currentPopulation;
+        if (delta <= 0) {
+            continue;
         }
-    }
-    return toRepopulate;
-}
 
-std::vector<AquariumCreatureType> Level_2::Repopulate() {
-    std::vector<AquariumCreatureType> toRepopulate;
-    for(std::shared_ptr<AquariumLevelPopulationNode> node : this->m_levelPopulation){
-        int delta = node->population - node->currentPopulation;
-        if(delta >0){
-            for(int i=0; i<delta; i++){
-                toRepopulate.push_back(node->creatureType);
-            }
-            node->currentPopulation += delta;
-        }
-    }
-    return toRepopulate;
-}
-
-std::vector<AquariumCreatureType> Level_3::Repopulate() {
-    std::vector<AquariumCreatureType> toRepopulate;
-    for (std::shared_ptr<AquariumLevelPopulationNode> node : this->m_levelPopulation) {
-        int delta = node->population - node->currentPopulation;
-        if (delta > 0) {
-            for (int i = 0; i < delta; ++i) {
-                toRepopulate.push_back(node->creatureType);
-            }
-            node->currentPopulation += delta;
-        }
-    }
-    return toRepopulate;
-}
-
-std::vector<AquariumCreatureType> Level_4::Repopulate() {
-    std::vector<AquariumCreatureType> toRepopulate;
-    for (std::shared_ptr<AquariumLevelPopulationNode> node : this->m_levelPopulation) {
-        int delta = node->population - node->currentPopulation;
-        if (delta > 0) {
-            for (int i = 0; i < delta; ++i) {
-                toRepopulate.push_back(node->creatureType);
-            }
-            node->currentPopulation += delta;
-        }
+        ofLogVerbose() << "to Repopulate :  " << delta;
+        toRepopulate.insert(toRepopulate.end(), static_cast<size_t>(delta), node->creatureType);
+        node->currentPopulation += delta;
     }
     return toRepopulate;
 }
