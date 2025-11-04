@@ -90,21 +90,35 @@ protected:
     void startBoost(PowerUpType type);                // convenience overload
 
     void updateBoost(float deltaTime);
+    void updatePredator(float deltaTime);
+
+    void activatePredatorMode(float seconds, std::shared_ptr<GameSprite> predatorSprite);
+    void deactivatePredatorMode();
+    bool isPredatorMode() const { return m_inPredatorMode; }
 
     float getBaseSpeed() const { return m_baseSpeed; }
     float getCurrentSpeed() const { return m_speed; }
+    float getBaseCollisionRadius() const { return m_baseRadius; }
     
 private:
   
     std::shared_ptr<PowerUp> m_activePowerUp = nullptr;
     
 bool m_boosted = false;
+bool m_hasActiveBoost = false;
+PowerUpType m_currentBoostType{PowerUpType::SPEED};
 float m_boostTimer = 0.0f;
+float m_sizeBoostMultiplier = 1.0f;
 float m_baseSpeed;
 float m_speed;
 float m_originalSpeed;
-float m_originalRadius;
-float m_collisionRadius;
+float m_baseRadius;
+float m_predatorCollisionRadius = 60.0f;
+bool m_inPredatorMode = false;
+float m_predatorTimer = 0.0f;
+float m_predatorEndTime = 0.0f;
+std::shared_ptr<GameSprite> m_normalSprite;
+std::shared_ptr<GameSprite> m_predatorSprite;
 
    
 
@@ -162,6 +176,8 @@ public:
     int getCreatureCount() const { return m_creatures.size(); }
     int getWidth() const { return m_width; }
     int getHeight() const { return m_height; }
+    int getCurrentLevel() const;
+    std::shared_ptr<AquariumSpriteManager> getSpriteManager() const { return m_sprite_manager; }
 
 
 private:
@@ -202,8 +218,6 @@ class AquariumGameScene : public GameScene {
         AwaitFrames updateControl{5};
 
     std::shared_ptr<PowerUp> m_activePowerUp;
-    float m_powerUpSpawnTimer = 0.0f;    // Timer counting up to spawn
-    float m_powerUpSpawnDelay = 5.0f;    // Spawn after 5 seconds
     float m_powerUpLifeTimer = 0.0f;     // Lifetime countdown
     float m_powerUpLifetime = 6.0f;      // Power-up disappears after 6 seconds
 
@@ -211,6 +225,7 @@ class AquariumGameScene : public GameScene {
     std::string m_boostMessage;
     float m_boostMessageTimer = 0.0f; // how long to show the message in seconds
     ofTrueTypeFont m_messageFont;     // font for messages
+    int m_lastKnownLevel = -1;
 
 
 };
@@ -265,5 +280,6 @@ class Level_4 : public AquariumLevel  {
 
         };
         std::vector<AquariumCreatureType> Repopulate() override;
+        bool isCompleted() override;
 
 };

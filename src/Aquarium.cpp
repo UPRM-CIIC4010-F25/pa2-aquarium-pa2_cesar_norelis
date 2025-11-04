@@ -20,13 +20,15 @@ PlayerCreature::PlayerCreature(float x, float y, int speed, std::shared_ptr<Game
     m_baseSpeed = static_cast<float>(speed);
     m_speed = m_baseSpeed;
     m_originalSpeed = m_baseSpeed;
-    m_originalRadius = m_collisionRadius;
+    m_baseRadius = getCollisionRadius();
+    m_normalSprite = sprite;
 }
 
 void PlayerCreature::update() {
     this->reduceDamageDebounce();
     float deltaTime = ofGetLastFrameTime();
     updateBoost(deltaTime);  // handle boost timing
+    updatePredator(deltaTime);
     reduceDamageDebounce();
     move();
     
@@ -57,47 +59,110 @@ void PlayerCreature::startBoost(PowerUpType type) {
 }
 
 void PlayerCreature::startBoost(float seconds, PowerUpType type) {
-    if (type == PowerUpType::SPEED) {
-        m_boosted = true;
-        m_boostTimer = seconds; // resets the timer every time
+    m_boosted = true;
+    m_hasActiveBoost = true;
+    m_currentBoostType = type;
+    m_boostTimer = seconds;
 
-        // Compute new intended speed
+    auto scene = dynamic_cast<AquariumGameScene*>(ofGetAppPtr());
+
+    if (type == PowerUpType::SPEED) {
         float intendedSpeed = m_speed * 1.1f;
         const float MAX_SPEED_CAP = m_baseSpeed * 1.5f;
 
-        if (intendedSpeed > MAX_SPEED_CAP) {
-            m_speed = MAX_SPEED_CAP;
-            ofLogNotice() << "MAX SPEED BOOST REACHED!";
-            auto scene = dynamic_cast<AquariumGameScene*>(ofGetAppPtr());
-            if (scene) scene->showBoostMessage("MAX SPEED BOOST REACHED!");
-        } else {
-            m_speed = intendedSpeed;
-            auto scene = dynamic_cast<AquariumGameScene*>(ofGetAppPtr());
-            if (scene) scene->showBoostMessage("SPEED BOOST!");
+        bool reachedCap = intendedSpeed >= MAX_SPEED_CAP;
+        m_speed = reachedCap ? MAX_SPEED_CAP : intendedSpeed;
+
+        if (scene) {
+            const float ratio = m_speed / m_baseSpeed;
+            if (ratio >= 1.5f) {
+                scene->showBoostMessage("MAX SPEED BOOST");
+            } else {
+                scene->showBoostMessage("SPEED BOOST!");
+            }
         }
 
-        ofLogNotice() << "Speed boost active: " << m_speed;
-    } 
-    else if (type == PowerUpType::SIZE) {
-        m_collisionRadius *= 1.3f;
-        m_boosted = true;
-        m_boostTimer = seconds;
-        auto scene = dynamic_cast<AquariumGameScene*>(ofGetAppPtr());
+        if (m_speed >= m_baseSpeed * 1.5f) {
+            auto scene = dynamic_cast<AquariumGameScene*>(ofGetAppPtr());
+            if (scene) {
+                scene->showBoostMessage("MAX SPEED BOOST");
+            }
+        }
+
+        if (m_speed >= m_baseSpeed * 1.5f) {
+            ofLogNotice() << "MAX SPEED BOOST";
+        } else {
+            ofLogNotice() << "Speed boost active: " << m_speed;
+        }
+    } else if (type == PowerUpType::SIZE) {
+        m_sizeBoostMultiplier = 1.3f;
+        float baseRadius = m_inPredatorMode ? m_predatorCollisionRadius : m_baseRadius;
+        setCollisionRadius(baseRadius * m_sizeBoostMultiplier);
         if (scene) scene->showBoostMessage("SIZE BOOST!");
     }
 }
 
 
 void PlayerCreature::updateBoost(float deltaTime) {
-    if (!m_boosted) return;
+    if (!m_hasActiveBoost) return;
 
     m_boostTimer -= deltaTime;
     if (m_boostTimer <= 0.0f) {
+        if (m_currentBoostType == PowerUpType::SPEED) {
+            m_speed = m_baseSpeed;
+            ofLogNotice() << "Power-up expired. Speed reset to " << m_baseSpeed;
+        } else if (m_currentBoostType == PowerUpType::SIZE) {
+            m_sizeBoostMultiplier = 1.0f;
+            float baseRadius = m_inPredatorMode ? m_predatorCollisionRadius : m_baseRadius;
+            setCollisionRadius(baseRadius);
+            ofLogNotice() << "Size boost expired. Hitbox reset.";
+        }
+
         m_boosted = false;
-        m_speed = m_baseSpeed;
-        m_collisionRadius = m_originalRadius;
-        ofLogNotice() << "Power-up expired. Speed reset to " << m_baseSpeed;
+        m_hasActiveBoost = false;
     }
+}
+
+void PlayerCreature::updatePredator(float deltaTime) {
+    if (!m_inPredatorMode) {
+        return;
+    }
+
+    m_predatorTimer = std::max(0.0f, m_predatorTimer - deltaTime);
+    if (ofGetElapsedTimef() >= m_predatorEndTime) {
+        ofLogNotice() << "Predator mode expired.";
+        deactivatePredatorMode();
+    }
+}
+
+void PlayerCreature::activatePredatorMode(float seconds, std::shared_ptr<GameSprite> predatorSprite) {
+    m_inPredatorMode = true;
+    m_predatorTimer = seconds;
+    m_predatorEndTime = ofGetElapsedTimef() + seconds;
+
+    if (!m_normalSprite) {
+        m_normalSprite = m_sprite;
+    }
+
+    if (predatorSprite) {
+        m_predatorSprite = predatorSprite;
+        setSprite(m_predatorSprite);
+    }
+
+    setCollisionRadius(m_predatorCollisionRadius * m_sizeBoostMultiplier);
+    ofLogNotice() << "Predator mode activated for " << seconds << " seconds.";
+}
+
+void PlayerCreature::deactivatePredatorMode() {
+    m_inPredatorMode = false;
+    m_predatorTimer = 0.0f;
+    m_predatorEndTime = 0.0f;
+
+    if (m_normalSprite) {
+        setSprite(m_normalSprite);
+    }
+
+    setCollisionRadius(m_baseRadius * m_sizeBoostMultiplier);
 }
 
 void PlayerCreature::draw() const {
@@ -355,6 +420,15 @@ void Aquarium::SpawnCreature(AquariumCreatureType type) {
 
 }
 
+int Aquarium::getCurrentLevel() const {
+    if (m_aquariumlevels.empty()) {
+        return 0;
+    }
+
+    int maxLevelIndex = static_cast<int>(m_aquariumlevels.size() - 1);
+    return std::min(currentLevel, maxLevelIndex);
+}
+
 
 // repopulation will be called from the levl class
 // it will compose into aquarium so eating eats frm the pool of NPCs in the lvl class
@@ -403,78 +477,65 @@ std::shared_ptr<GameEvent> DetectAquariumCollisions(std::shared_ptr<Aquarium> aq
 
 //  Imlementation of the AquariumScene
 void AquariumGameScene::Update() {
+    if (m_lastKnownLevel < 0 && m_aquarium) {
+        m_lastKnownLevel = m_aquarium->getCurrentLevel();
+    }
+
     this->m_player->update();
 
-   // Always increment spawn timer
-m_powerUpSpawnTimer += ofGetLastFrameTime();
+    float deltaTime = ofGetLastFrameTime();
+    if (!m_activePowerUp) {
+        float x = ofRandom(100, ofGetWidth() - 100);
+        float y = ofRandom(100, ofGetHeight() - 100);
 
-// Spawn a new power-up if none exists AND timer passed
-if (!m_activePowerUp && m_powerUpSpawnTimer <= m_powerUpSpawnDelay) {
-    m_powerUpSpawnTimer = 0.0f;
-    float x = ofRandom(100, ofGetWidth() - 100);
-    float y = ofRandom(100, ofGetHeight() - 100);
+        m_activePowerUp = std::make_shared<PowerUp>(
+            x, y, PowerUpType::SPEED,
+            std::make_shared<GameSprite>("powerup.png", 40, 40)
+        );
 
-    m_activePowerUp = std::make_shared<PowerUp>(
-        x, y, PowerUpType::SPEED,
-        std::make_shared<GameSprite>("powerup.png", 40, 40)
-    );
+        m_powerUpLifeTimer = m_powerUpLifetime;
+        ofLogNotice() << "Spawned a power-up!";
+    } else {
+        m_powerUpLifeTimer -= deltaTime;
 
-    m_powerUpLifeTimer = 0.0f; // start life timer
-    ofLogNotice() << "Spawned a power-up!";
-}
+        bool collected = checkCollision(m_player, m_activePowerUp);
+        bool expired = m_powerUpLifeTimer <= 0.0f;
 
-// Handle lifetime only if a power-up exists
-if (m_activePowerUp) {
-    m_powerUpLifeTimer += ofGetLastFrameTime();
+        if (collected) {
+            m_player->startBoost(m_activePowerUp->getType());
 
-    if (m_powerUpLifeTimer >= m_powerUpLifetime) {
-        ofLogNotice() << "Power-up expired!";
-        m_activePowerUp.reset();
-    }
+            if (m_player->getSpeed() >= m_player->getBaseSpeed() * 1.5f) {
+                showBoostMessage("MAX SPEED BOOST");
+            } else {
+                showBoostMessage("SPEED BOOST!");
+            }
 
-  if (m_activePowerUp) {
-    m_powerUpLifeTimer += ofGetLastFrameTime();
-
-    // Expire power-up if lifetime exceeded
-    if (m_powerUpLifeTimer >= m_powerUpLifetime) {
-        ofLogNotice() << "Power-up expired!";
-        m_activePowerUp.reset();
-    }
-
-    // Collision detection
-    if (checkCollision(m_player, m_activePowerUp)) {
-        // Apply boost to the player
-        m_player->startBoost(m_activePowerUp->getType());
-
-        // Show appropriate boost message
-        if (m_player->getSpeed() >= m_player->getBaseSpeed() * 1.5f) {
-            showBoostMessage("MAX SPEED BOOST REACHED!");
-        } else {
-            showBoostMessage("SPEED BOOST!");
+            ofLogNotice() << "Player collected Speed Boost!";
+        } else if (expired) {
+            ofLogNotice() << "Power-up expired!";
         }
 
-        ofLogNotice() << "Player collected Speed Boost!";
-        m_activePowerUp.reset();
+        if (collected || expired) {
+            m_activePowerUp.reset();
+            m_powerUpLifeTimer = 0.0f;
+        }
     }
-}
 
-// Update boost message timer every frame (outside collision)
-if (m_boostMessageTimer > 0.0f) {
-    m_boostMessageTimer -= ofGetLastFrameTime();
-    if (m_boostMessageTimer <= 0.0f) {
-        m_boostMessage.clear();
+    if (m_boostMessageTimer > 0.0f) {
+        m_boostMessageTimer -= deltaTime;
+        if (m_boostMessageTimer <= 0.0f) {
+            m_boostMessage.clear();
+        }
     }
-}
 
-
-    // NPC collision detection
     if (this->updateControl.tick()) {
         auto event = DetectAquariumCollisions(this->m_aquarium, this->m_player);
         if (event != nullptr && event->isCollisionEvent()) {
             ofLogVerbose() << "Collision detected between player and NPC!" << std::endl;
             if(event->creatureB != nullptr){
                 event->print();
-                if(this->m_player->getPower() < event->creatureB->getValue()){
+                bool predatorActive = this->m_player->isPredatorMode();
+                if(!predatorActive && this->m_player->getPower() < event->creatureB->getValue()){
                     ofLogNotice() << "Player is too weak to eat the creature!" << std::endl;
                     this->m_player->loseLife(3*60); // 3 frames debounce, 3 seconds at 60fps
                     if(this->m_player->getLives() <= 0){
@@ -498,14 +559,23 @@ if (m_boostMessageTimer > 0.0f) {
                 ofLogError() << "Error: creatureB is null in collision event." << std::endl;
             }
         }
+
         this->m_aquarium->update();
+
+        int currentLevel = this->m_aquarium->getCurrentLevel();
+        if (currentLevel != m_lastKnownLevel) {
+            auto spriteManager = this->m_aquarium->getSpriteManager();
+            std::shared_ptr<GameSprite> predatorSprite = spriteManager ? spriteManager->GetSprite(AquariumCreatureType::BiggerFish) : nullptr;
+            this->m_player->activatePredatorMode(10.0f, predatorSprite);
+            showBoostMessage("PREDATOR MODE!");
+            m_lastKnownLevel = currentLevel;
+        }
     }
-}
 }
 
 void AquariumGameScene::showBoostMessage(const std::string& msg) {
     m_boostMessage = msg;
-    m_boostMessageTimer = 2.0f; // show message for 2 seconds
+    m_boostMessageTimer = 4.0f; // show message for longer visibility
 }
 
 void AquariumGameScene::Draw() {
@@ -638,4 +708,8 @@ std::vector<AquariumCreatureType> Level_4::Repopulate() {
         }
     }
     return toRepopulate;
+}
+
+bool Level_4::isCompleted() {
+    return false;
 }
